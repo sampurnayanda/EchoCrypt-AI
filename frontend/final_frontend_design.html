@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-Crypt Audio Messaging</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #d4db98;
+            color: white;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 50px;
+            flex-wrap: wrap;
+        }
+        .box {
+            background: #111;
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+            box-shadow: 0px 0px 10px rgba(255, 255, 255, 0.2);
+        }
+        button {
+            padding: 10px 15px;
+            border: none;
+            margin: 8px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 80%;
+        }
+        .start-btn { background: rgb(60, 154, 60); color: white; }
+        .stop-btn { background: rgb(227, 75, 75); color: white; }
+        .play-btn { background: rgb(75, 159, 238); color: white; }
+        .progress-container {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            margin: 10px 0;
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: #ff8c94;
+            transition: width 0.2s ease-in-out;
+        }
+        input {
+            background: white;
+            color: black;
+            border: 1px solid #ccc;
+            outline: none;
+            font-size: 16px;
+            width: 80%;
+            padding: 5px;
+            text-align: center;
+            margin-top: 10px;
+            border-radius: 5px;
+        }
+        .code-box {
+            margin-top: 15px;
+        }
+        audio {
+            width: 100%;
+            margin-top: 10px;
+        }
+        .description {
+            font-size: 14px;
+            color: #ccc;
+            margin-top: 10px;
+        }
+        .heading{
+            color: black;
+        }
+        .description{
+            color: black;
+            font-weight: bold;
+            font-size: 19px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="heading">AI-Crypt Audio Messaging</h1>
+    <p class="description">Secure and professional voice recording</p>
+
+    <div class="container">
+        <div class="box">
+            <h2>Send Audio Message</h2>
+            <button class="start-btn" onclick="startRecording()">Start Recording</button>
+            <button class="stop-btn" onclick="stopRecording()">Stop Recording</button>
+            <button class="play-btn" onclick="playRecording()">Play Encrypted Recording</button>
+
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <audio id="audioPlayer" controls></audio>
+
+            <div class="code-box">
+                <input type="text" id="codeInput" placeholder="Generated Code" readonly>
+            </div>
+        </div>
+
+        <div class="box">
+            <h2>Receive Audio Message</h2>
+            <input type="text" id="receiveCode" placeholder="Enter code here">
+            <button class="play-btn" onclick="decryptAndPlay()">Decrypted Recording</button>
+
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBarReceive"></div>
+            </div>
+
+            <audio id="decryptedAudio" controls disabled></audio>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob;
+        let audioUrl;
+        let generatedCode = "";
+        let progressInterval;
+        let requestId;
+        function startRecording() {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                mediaRecorder.start();
+                audioChunks = [];
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                document.getElementById("progressBar").style.width = "0%";
+                let progress = 0;
+                progressInterval = setInterval(() => {
+                    progress += 5;
+                    document.getElementById("progressBar").style.width = Math.min(progress, 100) + "%";
+                    if (progress >= 100) clearInterval(progressInterval);
+                }, 500);
+            });
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+
+            mediaRecorder.onstop = () => {
+                audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                audioUrl = URL.createObjectURL(audioBlob);
+                document.getElementById("audioPlayer").src = audioUrl;
+                generatedCode = generateCode();
+                document.getElementById("codeInput").value = generatedCode;
+                clearInterval(progressInterval);
+                document.getElementById("progressBar").style.width = "0%"; 
+            };
+        }
+
+        function playRecording() {
+            const audioPlayer = document.getElementById("audioPlayer");
+            audioPlayer.play();
+            updateProgressBar(audioPlayer, "progressBar");
+        }
+
+        function generateCode() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function decryptAndPlay() {
+            let inputCode = document.getElementById("receiveCode").value.trim();
+            let decryptedAudio = document.getElementById("decryptedAudio");
+
+            if (inputCode === generatedCode && audioUrl) {
+                decryptedAudio.src = audioUrl;
+                decryptedAudio.play();
+                updateProgressBar(decryptedAudio, "progressBarReceive");
+                decryptedAudio.removeAttribute("disabled");
+            } else {
+                alert("Incorrect Code! Please enter the correct code.");
+                decryptedAudio.setAttribute("disabled", true);
+                decryptedAudio.src = "";
+            }
+        }
+
+        function updateProgressBar(audioElement, progressBarId) {
+            const progressBar = document.getElementById(progressBarId);
+            audioElement.ontimeupdate = () => {
+                const progress = (audioElement.currentTime / audioElement.duration) * 100;
+                progressBar.style.width = progress + "%";
+            };
+
+            audioElement.onended = () => {
+                progressBar.style.width = "0%";
+            };
+
+            function smoothUpdate() {
+                const progress = (audioElement.currentTime / audioElement.duration) * 100;
+                progressBar.style.width = progress + "%";
+                requestId = requestAnimationFrame(smoothUpdate);
+            }
+            smoothUpdate(); 
+
+            audioElement.onpause = () => {
+                cancelAnimationFrame(requestId); 
+        }
+    </script>
+
+</body>
+</html>
